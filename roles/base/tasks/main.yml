@@ -1,0 +1,75 @@
+# Role: base
+# Description: Mise a jour systeme et installation des paquets essentiels
+# ========================================================================
+---
+- name: Mise a jour du cache APT
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Mise a jour complete du systeme
+  apt:
+    upgrade: dist
+    autoremove: yes
+  register: apt_upgrade
+
+- name: Installation des paquets essentiels
+  apt:
+    name:
+      - curl
+      - wget
+      - git
+      - htop
+      - vim
+      - nano
+      - nfs-common
+      - net-tools
+      - dnsutils
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - python3-pip
+      - jq
+    state: present
+
+- name: Configuration du fuseau horaire
+  timezone:
+    name: "{{ timezone }}"
+
+- name: Installation de unattended-upgrades
+  apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+
+- name: Configuration des mises a jour automatiques de securite
+  copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+    mode: '0644'
+
+- name: Configuration de unattended-upgrades
+  copy:
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+          "${distro_id}:${distro_codename}";
+          "${distro_id}:${distro_codename}-security";
+          "${distro_id}ESMApps:${distro_codename}-apps-security";
+          "${distro_id}ESM:${distro_codename}-infra-security";
+      };
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+      Unattended-Upgrade::Automatic-Reboot "false";
+    mode: '0644'
+
+- name: Redemarrage si necessaire apres mise a jour
+  reboot:
+    msg: "Redemarrage apres mise a jour systeme"
+    reboot_timeout: 300
+  when: apt_upgrade.changed

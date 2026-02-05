@@ -1,0 +1,36 @@
+# KubeSecureBox - Variables globales
+# ====================================
+
+# === PROJET ===
+project_name: "nom_projet"
+domain_name: "domaine.com"
+timezone: "Europe/Paris"
+
+# === UTILISATEUR ===
+ansible_user: "nom_utilisateur"
+# Le mot de passe sera stocke dans vault.yml (chiffre)
+# user_password: "defini_dans_vault.yml"
+
+# === SSH ===
+ssh_port: port_ssh
+ssh_allow_password: false
+
+# === RESEAU ===
+# Plage IP Tailscale pour les regles de pare-feu
+tailscale_subnet: "subnet_tailscale"
+
+# === STOCKAGE ===
+storage_mount_point: "/mnt/storage"
+storage_device: "disque_stockage"  # A verifier avec lsblk sur le Pi master
+
+# === ALERTES ===
+# Les credentials sensibles sont dans vault.yml
+alert_levels:
+  info: "discord"
+  warning: "discord,email"
+  critical: "discord,email"
+
+# === K3S ===
+k3s_version: "version_k3s"
+k3s_disable_components:
+  - traefik  # On installera une version plus recente via Helm

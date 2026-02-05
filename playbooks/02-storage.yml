@@ -1,0 +1,76 @@
+# Playbook: 02-storage.yml
+# Description: Configuration du stockage HDD et NFS
+# ==================================================
+# Usage: ansible-playbook -i inventory/hosts.ini playbooks/02-storage.yml --ask-vault-pass
+---
+- name: Configuration du stockage sur le master
+  hosts: masters
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - ../inventory/group_vars/all.yml
+    - ../inventory/group_vars/vault.yml
+
+  vars:
+    ansible_port: "{{ ssh_port }}"
+
+  pre_tasks:
+    - name: Verifier la presence du disque
+      command: lsblk -d -o NAME,SIZE,TYPE -n
+      register: disk_check
+      changed_when: false
+
+    - name: Afficher les disques detectes
+      debug:
+        msg: |
+          Disques detectes:
+          {{ disk_check.stdout }}
+          
+          Configuration prevue:
+          - Device: {{ storage_device }}
+          - Point de montage: {{ storage_mount_point }}
+
+  roles:
+    - role: storage
+      tags: [storage, nfs]
+
+  post_tasks:
+    - name: Verifier le montage
+      command: df -h {{ storage_mount_point }}
+      register: mount_status
+      changed_when: false
+
+    - name: Afficher le statut du stockage
+      debug:
+        msg: |
+          Stockage configure!
+          {{ mount_status.stdout }}
+          
+          Export NFS disponible:
+          {{ storage_mount_point }}/nfs-shares/k8s
+
+- name: Configuration NFS client sur les workers
+  hosts: workers
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - ../inventory/group_vars/all.yml
+
+  vars:
+    ansible_port: "{{ ssh_port }}"
+
+  tasks:
+    - name: Installer le client NFS
+      apt:
+        name: nfs-common
+        state: present
+
+    - name: Afficher le message de fin
+      debug:
+        msg: |
+          Client NFS installe sur {{ ansible_hostname }}
+          
+          Prochaine etape:
+          ansible-playbook -i inventory/hosts.ini playbooks/03-k3s.yml --ask-vault-pass

@@ -1,0 +1,20 @@
+# KubeSecureBox - Inventaire Ansible
+# ===================================
+# Modifier les IPs selon votre configuration reseau
+
+[all:vars]
+ansible_user=nom_utilisateur
+ansible_python_interpreter=/usr/bin/python3
+# Apres le premier bootstrap, decommenter la ligne suivante :
+#ansible_port=port_ssh
+
+[masters]
+name_master ansible_host=192.x.x.x
+
+[workers]
+name_worker ansible_host=192.x.x.x
+name_worker ansible_host=192.x.x.x
+
+[cluster:children]
+masters
+workers

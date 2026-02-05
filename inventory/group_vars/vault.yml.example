@@ -1,0 +1,24 @@
+# KubeSecureBox - Variables sensibles (EXEMPLE)
+# ==============================================
+# INSTRUCTIONS:
+# 1. Copier ce fichier vers vault.yml
+# 2. Remplir avec vos vraies valeurs
+# 3. Chiffrer avec: ansible-vault encrypt inventory/group_vars/vault.yml
+# 4. NE JAMAIS commiter vault.yml sur Git !
+
+# === UTILISATEUR ===
+user_password: "VotreMotDePasseTresLongEtComplexe123!"
+
+# === TAILSCALE ===
+tailscale_auth_key: "tskey-auth-kXXXXX-XXXXXXXX"
+
+# === ALERTES DISCORD ===
+discord_webhook_url: "https://discord.com/api/webhooks/XXXX/YYYY"
+
+# === ALERTES EMAIL (Brevo) ===
+smtp_host: "smtp-relay.brevo.com"
+smtp_port: 587
+smtp_user: "votre-email@domain.com"
+smtp_password: "votre-cle-api-brevo"
+alert_email_from: "alerts@kubesecurebox.com"
+alert_email_to: "votre-email@personnel.com"

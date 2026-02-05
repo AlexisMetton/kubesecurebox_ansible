@@ -1,0 +1,6 @@
+# Role: security - Variables par defaut
+# =======================================
+---
+ssh_port: 2222
+ssh_allow_password: false
+tailscale_subnet: "100.64.0.0/10"

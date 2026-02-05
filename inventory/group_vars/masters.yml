@@ -1,0 +1,14 @@
+# KubeSecureBox - Variables specifiques aux masters
+# ==================================================
+
+# Le master a le role de Control Plane K3s + stockage NFS
+k3s_role: "server"
+
+# Configuration du stockage (HDD 4To)
+storage_enabled: true
+nfs_server_enabled: true
+
+# Le master expose le NFS aux workers
+nfs_exports:
+  - path: "{{ storage_mount_point }}"
+    options: "{{ tailscale_subnet }}(rw,sync,no_subtree_check,no_root_squash)"

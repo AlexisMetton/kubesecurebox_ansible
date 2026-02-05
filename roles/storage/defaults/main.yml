@@ -1,0 +1,8 @@
+# Role: storage - Variables par defaut
+# ======================================
+---
+storage_mount_point: "/mnt/storage"
+storage_device: "/dev/sda1"
+tailscale_subnet: "100.64.0.0/10"
+nfs_server_enabled: false
+nfs_client_enabled: false

@@ -1,0 +1,55 @@
+# Configuration logrotate pour KubeSecureBox
+# Genere par Ansible - Ne pas modifier manuellement
+
+# Logs K3s
+/var/log/k3s*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+    maxsize 100M
+}
+
+# Logs containerd
+/var/log/containers/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    maxsize 100M
+}
+
+# Logs des pods
+/var/log/pods/*/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    maxsize 100M
+}
+
+# Logs systeme supplementaires
+/var/log/syslog
+/var/log/auth.log
+/var/log/kern.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root adm
+    sharedscripts
+    postrotate
+        /usr/lib/rsyslog/rsyslog-rotate
+    endscript
+}

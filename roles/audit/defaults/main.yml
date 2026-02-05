@@ -1,0 +1,5 @@
+# Role: audit - Variables par defaut
+# =====================================
+---
+# Le webhook Discord est defini dans vault.yml
+# discord_webhook_url: "https://discord.com/api/webhooks/..."

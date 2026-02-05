@@ -1,0 +1,99 @@
+# Role: k3s - Installation du serveur (master)
+# ==============================================
+---
+- name: Verifier si K3s est deja installe
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Obtenir l'IP Tailscale du master
+  command: tailscale ip -4
+  register: master_tailscale_ip
+  changed_when: false
+
+- name: Installer K3s en mode serveur
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
+      --disable traefik \
+      --disable servicelb \
+      --write-kubeconfig-mode 644 \
+      --tls-san {{ master_tailscale_ip.stdout }} \
+      --tls-san {{ domain_name }} \
+      --tls-san {{ ansible_host }} \
+      --node-ip {{ master_tailscale_ip.stdout }} \
+      --flannel-iface tailscale0 \
+      --kube-apiserver-arg default-not-ready-toleration-seconds=30 \
+      --kube-apiserver-arg default-unreachable-toleration-seconds=30 \
+      --kube-controller-manager-arg node-monitor-period=20s \
+      --kube-controller-manager-arg node-monitor-grace-period=20s \
+      --kubelet-arg node-status-update-frequency=5s
+  args:
+    creates: /usr/local/bin/k3s
+  environment:
+    INSTALL_K3S_SKIP_SELINUX_RPM: "true"
+
+- name: Attendre que K3s soit pret
+  wait_for:
+    path: /etc/rancher/k3s/k3s.yaml
+    state: present
+    timeout: 120
+
+- name: Attendre que le service K3s soit operationnel
+  command: kubectl get nodes
+  register: k3s_nodes
+  until: k3s_nodes.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Lire le token K3s
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_raw
+
+- name: Sauvegarder le token K3s comme fact
+  set_fact:
+    k3s_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+
+- name: Afficher le token K3s (pour debug)
+  debug:
+    msg: "Token K3s: {{ k3s_token }}"
+  when: false  # Desactive par defaut pour la securite
+
+- name: Creer le repertoire .kube pour l'utilisateur
+  file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Copier la config kubectl pour l'utilisateur
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: yes
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+
+- name: Modifier l'adresse du serveur dans kubeconfig (utiliser IP Tailscale)
+  replace:
+    path: "/home/{{ ansible_user }}/.kube/config"
+    regexp: 'server: https://127.0.0.1:6443'
+    replace: "server: https://{{ master_tailscale_ip.stdout }}:6443"
+
+- name: Recuperer le kubeconfig pour le PC local
+  fetch:
+    src: "/home/{{ ansible_user }}/.kube/config"
+    dest: "./kubeconfig-{{ inventory_hostname }}"
+    flat: yes
+
+- name: Verifier l'etat du cluster
+  command: kubectl get nodes -o wide
+  register: cluster_status
+  changed_when: false
+
+- name: Afficher l'etat du cluster
+  debug:
+    msg: "{{ cluster_status.stdout_lines }}"

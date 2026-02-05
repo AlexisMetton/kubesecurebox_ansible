@@ -1,0 +1,11 @@
+# Role: k3s
+# Description: Installation de K3s (master et workers)
+# =====================================================
+---
+- name: Inclure les taches du serveur (master)
+  include_tasks: server.yml
+  when: k3s_role == "server"
+
+- name: Inclure les taches de l'agent (worker)
+  include_tasks: agent.yml
+  when: k3s_role == "agent"

@@ -1,0 +1,5 @@
+# Role: tailscale - Variables par defaut
+# ========================================
+---
+# La cle d'authentification doit etre definie dans vault.yml
+# tailscale_auth_key: "tskey-auth-..."

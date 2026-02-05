@@ -1,0 +1,51 @@
+# Role: k3s - Installation de l'agent (worker)
+# ==============================================
+---
+- name: Verifier si K3s agent est deja installe
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Obtenir l'IP Tailscale du worker
+  command: tailscale ip -4
+  register: worker_tailscale_ip
+  changed_when: false
+
+- name: Obtenir l'IP Tailscale du master depuis les facts
+  set_fact:
+    k3s_server_ip: "{{ hostvars[groups['masters'][0]]['tailscale_ipv4'] | default(hostvars[groups['masters'][0]]['ansible_host']) }}"
+
+- name: Obtenir le token K3s du master
+  set_fact:
+    k3s_token: "{{ hostvars[groups['masters'][0]]['k3s_token'] }}"
+  when: hostvars[groups['masters'][0]]['k3s_token'] is defined
+
+- name: Afficher les informations de connexion
+  debug:
+    msg: "Connexion au master K3s: {{ k3s_server_ip }}"
+
+- name: Installer K3s en mode agent
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - agent \
+      --server https://{{ k3s_server_ip }}:6443 \
+      --token {{ k3s_token }} \
+      --node-ip {{ worker_tailscale_ip.stdout }} \
+      --flannel-iface tailscale0
+  args:
+    creates: /usr/local/bin/k3s
+  environment:
+    INSTALL_K3S_SKIP_SELINUX_RPM: "true"
+  when: 
+    - not k3s_installed.stat.exists
+    - k3s_token is defined
+
+- name: Attendre que l'agent K3s soit connecte
+  pause:
+    seconds: 30
+  when: not k3s_installed.stat.exists
+
+- name: Verifier le statut du service k3s-agent
+  systemd:
+    name: k3s-agent
+    state: started
+    enabled: yes

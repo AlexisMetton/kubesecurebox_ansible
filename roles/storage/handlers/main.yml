@@ -1,0 +1,7 @@
+# Role: storage - Handlers
+# =========================
+---
+- name: Restart NFS
+  systemd:
+    name: nfs-kernel-server
+    state: restarted

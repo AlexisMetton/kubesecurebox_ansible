@@ -1,0 +1,98 @@
+# Playbook: 03-k3s.yml
+# Description: Installation de K3s (Kubernetes)
+# ==============================================
+# Usage: ansible-playbook -i inventory/hosts.ini playbooks/03-k3s.yml --ask-vault-pass
+---
+- name: Preparation Kubernetes sur tous les noeuds
+  hosts: cluster
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - ../inventory/group_vars/all.yml
+    - ../inventory/group_vars/vault.yml
+
+  vars:
+    ansible_port: "{{ ssh_port }}"
+
+  roles:
+    - role: kubernetes-prep
+      tags: [k8s-prep, swap, cgroups]
+
+- name: Installation K3s Server (Master)
+  hosts: masters
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - ../inventory/group_vars/all.yml
+    - ../inventory/group_vars/vault.yml
+
+  vars:
+    ansible_port: "{{ ssh_port }}"
+
+  roles:
+    - role: k3s
+      tags: [k3s, k3s-server]
+
+- name: Installation K3s Agent (Workers)
+  hosts: workers
+  become: yes
+  gather_facts: yes
+  serial: 1  # Un worker a la fois
+
+  vars_files:
+    - ../inventory/group_vars/all.yml
+    - ../inventory/group_vars/vault.yml
+
+  vars:
+    ansible_port: "{{ ssh_port }}"
+
+  roles:
+    - role: k3s
+      tags: [k3s, k3s-agent]
+
+- name: Verification du cluster
+  hosts: masters
+  become: yes
+  gather_facts: no
+
+  vars:
+    ansible_port: "{{ ssh_port }}"
+
+  tasks:
+    - name: Attendre que tous les noeuds soient prets
+      command: kubectl get nodes
+      register: nodes_status
+      until: "'NotReady' not in nodes_status.stdout"
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Afficher l'etat final du cluster
+      command: kubectl get nodes -o wide
+      register: final_status
+      changed_when: false
+
+    - name: Afficher les informations du cluster
+      debug:
+        msg: |
+          =====================================================
+          CLUSTER K3S OPERATIONNEL !
+          =====================================================
+          
+          {{ final_status.stdout }}
+          
+          =====================================================
+          
+          Pour utiliser kubectl depuis votre PC:
+          1. Copiez le fichier kubeconfig-pi-master genere
+          2. export KUBECONFIG=./kubeconfig-pi-master
+          3. kubectl get nodes
+          
+          Prochaines etapes (Phase 6):
+          - Installer Traefik avec Let's Encrypt
+          - Installer Prometheus + Grafana
+          - Configurer Cloudflare Tunnel
+          
+          =====================================================

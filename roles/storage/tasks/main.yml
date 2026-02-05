@@ -1,0 +1,101 @@
+# Role: storage
+# Description: Configuration du stockage HDD et partage NFS
+# ==========================================================
+---
+# === DETECTION DU DISQUE ===
+- name: Lister les disques disponibles
+  command: lsblk -d -o NAME,SIZE,TYPE -n
+  register: disk_list
+  changed_when: false
+
+- name: Afficher les disques detectes
+  debug:
+    msg: "{{ disk_list.stdout_lines }}"
+
+# === CREATION DU POINT DE MONTAGE ===
+- name: Creer le point de montage
+  file:
+    path: "{{ storage_mount_point }}"
+    state: directory
+    mode: '0755'
+
+# === FORMATAGE DU DISQUE (si necessaire) ===
+- name: Verifier si le disque est deja formate
+  command: blkid {{ storage_device }}
+  register: blkid_result
+  changed_when: false
+  failed_when: false
+
+- name: Formater le disque en ext4 (si non formate)
+  filesystem:
+    fstype: ext4
+    dev: "{{ storage_device }}"
+  when: blkid_result.rc != 0
+
+# === MONTAGE DU DISQUE ===
+- name: Obtenir l'UUID du disque
+  command: blkid -s UUID -o value {{ storage_device }}
+  register: disk_uuid
+  changed_when: false
+
+- name: Afficher l'UUID du disque
+  debug:
+    msg: "UUID du disque {{ storage_device }}: {{ disk_uuid.stdout }}"
+
+- name: Monter le disque via fstab (avec UUID)
+  mount:
+    path: "{{ storage_mount_point }}"
+    src: "UUID={{ disk_uuid.stdout }}"
+    fstype: ext4
+    opts: defaults,noatime,nofail
+    state: mounted
+
+# === CREATION DES REPERTOIRES DE STOCKAGE ===
+- name: Creer les repertoires de stockage
+  file:
+    path: "{{ storage_mount_point }}/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - k8s-data
+    - backups
+    - logs
+    - nfs-shares
+
+# === CONFIGURATION NFS SERVER ===
+- name: Installer le serveur NFS
+  apt:
+    name:
+      - nfs-kernel-server
+      - nfs-common
+    state: present
+  when: nfs_server_enabled | default(false)
+
+- name: Creer le repertoire de partage NFS
+  file:
+    path: "{{ storage_mount_point }}/nfs-shares/k8s"
+    state: directory
+    mode: '0777'
+  when: nfs_server_enabled | default(false)
+
+- name: Configurer les exports NFS
+  lineinfile:
+    path: /etc/exports
+    line: "{{ storage_mount_point }}/nfs-shares/k8s {{ tailscale_subnet }}(rw,sync,no_subtree_check,no_root_squash)"
+    create: yes
+  when: nfs_server_enabled | default(false)
+  notify: Restart NFS
+
+- name: Activer et demarrer le serveur NFS
+  systemd:
+    name: nfs-kernel-server
+    state: started
+    enabled: yes
+  when: nfs_server_enabled | default(false)
+
+# === CONFIGURATION NFS CLIENT (Workers) ===
+- name: Installer le client NFS
+  apt:
+    name: nfs-common
+    state: present
+  when: nfs_client_enabled | default(false)

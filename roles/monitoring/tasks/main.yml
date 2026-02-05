@@ -1,0 +1,98 @@
+# Role: monitoring
+# Description: Node Exporter, Smartmontools, Logrotate
+# =====================================================
+---
+# === NODE EXPORTER ===
+- name: Creer l'utilisateur node_exporter
+  user:
+    name: node_exporter
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+
+- name: Telecharger Node Exporter
+  get_url:
+    url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-arm64.tar.gz"
+    dest: /tmp/node_exporter.tar.gz
+    mode: '0644'
+
+- name: Extraire Node Exporter
+  unarchive:
+    src: /tmp/node_exporter.tar.gz
+    dest: /tmp
+    remote_src: yes
+
+- name: Installer Node Exporter
+  copy:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-arm64/node_exporter"
+    dest: /usr/local/bin/node_exporter
+    remote_src: yes
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Creer le service systemd pour Node Exporter
+  copy:
+    dest: /etc/systemd/system/node_exporter.service
+    content: |
+      [Unit]
+      Description=Node Exporter
+      Wants=network-online.target
+      After=network-online.target
+      
+      [Service]
+      User=node_exporter
+      Group=node_exporter
+      Type=simple
+      ExecStart=/usr/local/bin/node_exporter \
+        --collector.systemd \
+        --collector.processes \
+        --web.listen-address=:9100
+      Restart=always
+      RestartSec=5
+      
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+  notify: Restart Node Exporter
+
+- name: Activer et demarrer Node Exporter
+  systemd:
+    name: node_exporter
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+# === SMARTMONTOOLS ===
+- name: Installer smartmontools
+  apt:
+    name: smartmontools
+    state: present
+
+- name: Activer le service smartd
+  systemd:
+    name: smartd
+    state: started
+    enabled: yes
+  ignore_errors: yes
+
+# === LM-SENSORS (Temperature) ===
+- name: Installer lm-sensors
+  apt:
+    name: lm-sensors
+    state: present
+
+# === LOGROTATE PERSONNALISE ===
+- name: Configuration logrotate pour K3s
+  template:
+    src: logrotate-k3s.j2
+    dest: /etc/logrotate.d/k3s-cluster
+    mode: '0644'
+
+- name: Nettoyer les fichiers temporaires
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/node_exporter.tar.gz
+    - "/tmp/node_exporter-{{ node_exporter_version }}.linux-arm64"

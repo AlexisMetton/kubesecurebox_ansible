@@ -1,0 +1,4 @@
+# Role: base - Variables par defaut
+# ===================================
+---
+timezone: "Europe/Paris"

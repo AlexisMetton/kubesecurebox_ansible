@@ -1,0 +1,7 @@
+# Role: kubernetes-prep - Handlers
+# ==================================
+---
+- name: Reboot for cgroups
+  reboot:
+    msg: "Redemarrage pour activer les cgroups"
+    reboot_timeout: 300

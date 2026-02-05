@@ -1,0 +1,104 @@
+# Role: alerting
+# Description: Configuration des alertes Discord et Email
+# ========================================================
+---
+# === INSTALLATION DES DEPENDANCES ===
+- name: Installer les outils necessaires pour les alertes
+  apt:
+    name:
+      - curl
+      - mailutils
+      - msmtp
+      - msmtp-mta
+    state: present
+
+# === SCRIPT DE NOTIFICATION DISCORD ===
+- name: Deployer le script de notification Discord
+  template:
+    src: discord-notify.sh.j2
+    dest: /usr/local/bin/discord-notify.sh
+    mode: '0755'
+    owner: root
+    group: root
+
+# === SCRIPT DE NOTIFICATION EMAIL ===
+- name: Deployer le script de notification Email
+  template:
+    src: email-notify.sh.j2
+    dest: /usr/local/bin/email-notify.sh
+    mode: '0755'
+    owner: root
+    group: root
+
+# === CONFIGURATION MSMTP (SMTP pour emails) ===
+- name: Configurer msmtp pour l'envoi d'emails
+  template:
+    src: msmtprc.j2
+    dest: /etc/msmtprc
+    mode: '0600'
+    owner: root
+    group: root
+  when: smtp_host is defined
+
+# === SERVICE DE NOTIFICATION AU BOOT ===
+- name: Deployer le service de notification au demarrage
+  copy:
+    dest: /etc/systemd/system/alert-boot.service
+    content: |
+      [Unit]
+      Description=Send boot notification
+      After=network-online.target tailscaled.service
+      Wants=network-online.target
+      
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/discord-notify.sh "Systeme demarre" "Le serveur {{ inventory_hostname }} a demarre avec succes." "info"
+      RemainAfterExit=yes
+      
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Activer le service de notification au boot
+  systemd:
+    name: alert-boot.service
+    enabled: yes
+    daemon_reload: yes
+
+# === ALERTE SSH (via PAM) ===
+- name: Configurer l'alerte de connexion SSH
+  lineinfile:
+    path: /etc/pam.d/sshd
+    line: "session optional pam_exec.so /usr/local/bin/ssh-login-alert.sh"
+    insertafter: "^@include common-session"
+
+- name: Deployer le script d'alerte SSH
+  template:
+    src: ssh-login-alert.sh.j2
+    dest: /usr/local/bin/ssh-login-alert.sh
+    mode: '0755'
+    owner: root
+    group: root
+
+# === ALERTE FAIL2BAN ===
+- name: Configurer l'action Discord pour Fail2Ban
+  copy:
+    dest: /etc/fail2ban/action.d/discord-notify.conf
+    content: |
+      [Definition]
+      actionstart = 
+      actionstop = 
+      actioncheck = 
+      actionban = /usr/local/bin/discord-notify.sh "IP Bannie" "L'IP <ip> a ete bannie par Fail2Ban sur {{ inventory_hostname }} apres <failures> tentatives." "warning"
+      actionunban = 
+    mode: '0644'
+  notify: Restart Fail2Ban
+
+- name: Ajouter l'action Discord a la jail sshd
+  lineinfile:
+    path: /etc/fail2ban/jail.local
+    line: "action = %(action_)s\n         discord-notify"
+    insertafter: '^\[sshd\]'
+  notify: Restart Fail2Ban
+  ignore_errors: yes

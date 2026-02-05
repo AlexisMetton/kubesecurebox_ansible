@@ -1,0 +1,38 @@
+# Playbook: 00-bootstrap.yml
+# Description: Premier demarrage - Mise a jour et configuration de base
+# =====================================================================
+# Usage: ansible-playbook -i inventory/hosts.ini playbooks/00-bootstrap.yml --ask-pass
+---
+- name: Bootstrap initial des Raspberry Pi
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - ../inventory/group_vars/all.yml
+
+  pre_tasks:
+    - name: Afficher les informations du systeme
+      debug:
+        msg: |
+          Hostname: {{ ansible_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Architecture: {{ ansible_architecture }}
+          RAM: {{ ansible_memtotal_mb }} MB
+          
+    - name: Verifier la connectivite
+      ping:
+
+  roles:
+    - role: base
+      tags: [base, bootstrap]
+
+  post_tasks:
+    - name: Afficher le message de fin
+      debug:
+        msg: |
+          Bootstrap termine pour {{ ansible_hostname }}!
+          
+          Prochaine etape:
+          1. Configurer vault.yml avec vos secrets
+          2. Lancer: ansible-playbook -i inventory/hosts.ini playbooks/01-security.yml

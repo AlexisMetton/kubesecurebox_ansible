@@ -1,0 +1,156 @@
+# Role: security
+# Description: Durcissement SSH, pare-feu, Fail2Ban, sysctl
+# ==========================================================
+---
+# === MOT DE PASSE UTILISATEUR ===
+- name: Mise a jour du mot de passe utilisateur (hash SHA-512)
+  user:
+    name: "{{ ansible_user }}"
+    password: "{{ user_password | password_hash('sha512') }}"
+    shell: /bin/bash
+  when: user_password is defined
+
+# === DEPLOIEMENT CLE SSH ===
+- name: Creer le repertoire .ssh
+  file:
+    path: "/home/{{ ansible_user }}/.ssh"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0700'
+
+- name: Deployer la cle SSH publique
+  authorized_key:
+    user: "{{ ansible_user }}"
+    state: present
+    key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_ed25519.pub') }}"
+  ignore_errors: yes
+
+# === DURCISSEMENT SSH ===
+- name: Configuration SSH durcie
+  template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: '0644'
+    validate: '/usr/sbin/sshd -t -f %s'
+  notify: Restart SSH
+
+# === PARE-FEU UFW ===
+- name: Installation de UFW
+  apt:
+    name: ufw
+    state: present
+
+- name: Configuration UFW - Politique par defaut (deny incoming)
+  ufw:
+    direction: incoming
+    policy: deny
+
+- name: Configuration UFW - Politique par defaut (allow outgoing)
+  ufw:
+    direction: outgoing
+    policy: allow
+
+- name: UFW - Autoriser SSH sur le port personnalise
+  ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: tcp
+    comment: "SSH personnalise"
+
+- name: UFW - Autoriser tout le trafic via Tailscale
+  ufw:
+    rule: allow
+    interface: tailscale0
+    direction: in
+    comment: "Tailscale VPN"
+
+- name: UFW - Autoriser le trafic entre les noeuds du cluster (K3s)
+  ufw:
+    rule: allow
+    src: "{{ tailscale_subnet }}"
+    comment: "Cluster K3s via Tailscale"
+
+- name: Activer UFW
+  ufw:
+    state: enabled
+    logging: "on"
+
+# === FAIL2BAN ===
+- name: Installation de Fail2Ban
+  apt:
+    name: fail2ban
+    state: present
+
+- name: Configuration Fail2Ban pour SSH
+  copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime = 86400
+      findtime = 600
+      maxretry = 3
+      
+      [sshd]
+      enabled = true
+      port = {{ ssh_port }}
+      logpath = %(sshd_log)s
+      backend = %(sshd_backend)s
+      maxretry = 3
+      bantime = 86400
+    mode: '0644'
+  notify: Restart Fail2Ban
+
+# === SYSCTL HARDENING ===
+- name: Durcissement sysctl - Reseau
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  loop:
+    - { key: 'net.ipv4.conf.all.accept_source_route', value: '0' }
+    - { key: 'net.ipv4.conf.default.accept_source_route', value: '0' }
+    - { key: 'net.ipv4.conf.all.accept_redirects', value: '0' }
+    - { key: 'net.ipv4.conf.default.accept_redirects', value: '0' }
+    - { key: 'net.ipv4.conf.all.secure_redirects', value: '0' }
+    - { key: 'net.ipv4.conf.default.secure_redirects', value: '0' }
+    - { key: 'net.ipv4.conf.all.log_martians', value: '1' }
+    - { key: 'net.ipv4.conf.default.log_martians', value: '1' }
+    - { key: 'net.ipv4.icmp_echo_ignore_broadcasts', value: '1' }
+    - { key: 'net.ipv4.icmp_ignore_bogus_error_responses', value: '1' }
+    - { key: 'net.ipv4.tcp_syncookies', value: '1' }
+    - { key: 'net.ipv4.conf.all.rp_filter', value: '1' }
+    - { key: 'net.ipv4.conf.default.rp_filter', value: '1' }
+
+# === DESACTIVATION BLUETOOTH/WIFI ===
+- name: Desactiver Bluetooth dans config.txt
+  lineinfile:
+    path: /boot/firmware/config.txt
+    line: "dtoverlay=disable-bt"
+    create: yes
+  notify: Reboot required
+
+- name: Desactiver WiFi dans config.txt
+  lineinfile:
+    path: /boot/firmware/config.txt
+    line: "dtoverlay=disable-wifi"
+    create: yes
+  notify: Reboot required
+
+- name: Desactiver le service Bluetooth
+  systemd:
+    name: bluetooth
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+
+- name: Desactiver hciuart (Bluetooth UART)
+  systemd:
+    name: hciuart
+    state: stopped
+    enabled: no
+  ignore_errors: yes

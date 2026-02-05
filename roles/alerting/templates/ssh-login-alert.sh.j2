@@ -1,0 +1,37 @@
+#!/bin/bash
+# Script d'alerte de connexion SSH pour KubeSecureBox
+# Genere par Ansible - Ne pas modifier manuellement
+
+# Seulement pour les connexions reussies (open_session)
+if [ "${PAM_TYPE}" != "open_session" ]; then
+    exit 0
+fi
+
+WEBHOOK_URL="{{ discord_webhook_url | default('') }}"
+HOSTNAME=$(hostname)
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+
+# Verifier si le webhook est configure
+if [ -z "${WEBHOOK_URL}" ]; then
+    exit 0
+fi
+
+# Envoyer la notification Discord
+curl -s -H "Content-Type: application/json" \
+    -X POST \
+    -d "{
+        \"embeds\": [{
+            \"title\": \"Connexion SSH\",
+            \"description\": \"Nouvelle connexion SSH detectee\",
+            \"color\": 3447003,
+            \"fields\": [
+                {\"name\": \"Utilisateur\", \"value\": \"${PAM_USER}\", \"inline\": true},
+                {\"name\": \"Serveur\", \"value\": \"${HOSTNAME}\", \"inline\": true},
+                {\"name\": \"IP Source\", \"value\": \"${PAM_RHOST:-local}\", \"inline\": true},
+                {\"name\": \"Date\", \"value\": \"${DATE}\", \"inline\": false}
+            ]
+        }]
+    }" \
+    "${WEBHOOK_URL}" &>/dev/null &
+
+exit 0

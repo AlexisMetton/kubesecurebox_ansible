@@ -1,0 +1,47 @@
+# KubeSecureBox - Fichiers a ignorer par Git
+# ===========================================
+
+# === DONNEES SENSIBLES ===
+inventory/group_vars/all.yml
+
+# === LISTE DES IP DES RASPBERRY PI ===
+inventory/hosts.ini
+
+# === SECRETS (TRES IMPORTANT) ===
+inventory/group_vars/vault.yml
+*.vault.yml
+.vault_pass
+.vault_password
+
+# === FICHIERS TEMPORAIRES ANSIBLE ===
+*.retry
+*.pyc
+__pycache__/
+.cache/
+
+# === KUBERNETES ===
+kubeconfig
+*.kubeconfig
+k3s.yaml
+
+# === LOGS ===
+*.log
+logs/
+
+# === EDITEURS ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === ENVIRONNEMENTS VIRTUELS ===
+venv/
+.env
+*.egg-info/
+
+/MEMO.md

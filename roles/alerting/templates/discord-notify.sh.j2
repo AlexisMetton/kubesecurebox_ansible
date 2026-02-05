@@ -1,0 +1,54 @@
+#!/bin/bash
+# Script de notification Discord pour KubeSecureBox
+# Genere par Ansible - Ne pas modifier manuellement
+# Usage: discord-notify.sh "Titre" "Message" [info|warning|critical]
+
+set -e
+
+WEBHOOK_URL="{{ discord_webhook_url | default('') }}"
+TITLE="${1:-Notification}"
+MESSAGE="${2:-Aucun message}"
+LEVEL="${3:-info}"
+HOSTNAME=$(hostname)
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Couleurs selon le niveau
+case "${LEVEL}" in
+    "info")
+        COLOR=3066993  # Vert
+        ;;
+    "warning")
+        COLOR=16776960  # Jaune
+        ;;
+    "critical")
+        COLOR=15158332  # Rouge
+        ;;
+    *)
+        COLOR=3447003  # Bleu
+        ;;
+esac
+
+# Verifier si le webhook est configure
+if [ -z "${WEBHOOK_URL}" ]; then
+    echo "Webhook Discord non configure. Notification ignoree."
+    exit 0
+fi
+
+# Envoyer la notification
+curl -s -H "Content-Type: application/json" \
+    -X POST \
+    -d "{
+        \"embeds\": [{
+            \"title\": \"${TITLE}\",
+            \"description\": \"${MESSAGE}\",
+            \"color\": ${COLOR},
+            \"fields\": [
+                {\"name\": \"Serveur\", \"value\": \"${HOSTNAME}\", \"inline\": true},
+                {\"name\": \"Niveau\", \"value\": \"${LEVEL}\", \"inline\": true}
+            ],
+            \"timestamp\": \"${TIMESTAMP}\"
+        }]
+    }" \
+    "${WEBHOOK_URL}"
+
+echo "Notification Discord envoyee: ${TITLE}"

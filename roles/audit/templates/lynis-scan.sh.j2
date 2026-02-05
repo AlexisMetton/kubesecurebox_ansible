@@ -1,0 +1,56 @@
+#!/bin/bash
+# Script de scan Lynis automatique pour KubeSecureBox
+# Genere par Ansible - Ne pas modifier manuellement
+
+set -e
+
+# Variables
+REPORT_DIR="/var/log/lynis"
+DATE=$(date +%Y%m%d_%H%M%S)
+HOSTNAME=$(hostname)
+REPORT_FILE="${REPORT_DIR}/lynis_report_${DATE}.txt"
+MAX_REPORTS=4
+
+# Creer le repertoire si necessaire
+mkdir -p ${REPORT_DIR}
+
+# Executer le scan Lynis
+echo "Demarrage du scan Lynis sur ${HOSTNAME}..."
+lynis audit system --no-colors > ${REPORT_FILE} 2>&1 || true
+
+# Extraire le score de durcissement
+SCORE=$(grep "Hardening index" ${REPORT_FILE} | grep -oP '\d+' | head -1 || echo "0")
+
+echo "Score de durcissement: ${SCORE}/100"
+
+# Garder seulement les N derniers rapports
+cd ${REPORT_DIR}
+ls -t lynis_report_*.txt 2>/dev/null | tail -n +$((MAX_REPORTS + 1)) | xargs -r rm -f
+
+# Envoyer une notification Discord si le score est trop bas
+{% if discord_webhook_url is defined %}
+if [ "${SCORE}" -lt 70 ]; then
+    ALERT_COLOR=16711680  # Rouge
+    ALERT_LEVEL="ATTENTION"
+else
+    ALERT_COLOR=65280  # Vert
+    ALERT_LEVEL="INFO"
+fi
+
+curl -s -H "Content-Type: application/json" \
+    -X POST \
+    -d "{
+        \"embeds\": [{
+            \"title\": \"Rapport Lynis - ${HOSTNAME}\",
+            \"description\": \"Score de durcissement: **${SCORE}/100**\",
+            \"color\": ${ALERT_COLOR},
+            \"fields\": [
+                {\"name\": \"Niveau\", \"value\": \"${ALERT_LEVEL}\", \"inline\": true},
+                {\"name\": \"Date\", \"value\": \"$(date '+%Y-%m-%d %H:%M')\", \"inline\": true}
+            ]
+        }]
+    }" \
+    "{{ discord_webhook_url }}" || true
+{% endif %}
+
+echo "Scan termine. Rapport: ${REPORT_FILE}"

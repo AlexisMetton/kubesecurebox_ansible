@@ -1,0 +1,11 @@
+# Role: alerting - Variables par defaut
+# =======================================
+---
+# Les credentials sont definis dans vault.yml
+# discord_webhook_url: ""
+# smtp_host: ""
+# smtp_port: 587
+# smtp_user: ""
+# smtp_password: ""
+# alert_email_from: ""
+# alert_email_to: ""

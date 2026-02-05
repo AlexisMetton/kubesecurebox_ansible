@@ -1,0 +1,46 @@
+# Role: tailscale
+# Description: Installation et configuration de Tailscale VPN
+# ============================================================
+---
+- name: Verifier si Tailscale est deja installe
+  stat:
+    path: /usr/bin/tailscale
+  register: tailscale_installed
+
+- name: Telecharger et installer Tailscale
+  shell: curl -fsSL https://tailscale.com/install.sh | sh
+  args:
+    creates: /usr/bin/tailscale
+  when: not tailscale_installed.stat.exists
+
+- name: Activer et demarrer le service Tailscale
+  systemd:
+    name: tailscaled
+    state: started
+    enabled: yes
+
+- name: Verifier le statut de Tailscale
+  command: tailscale status
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+
+- name: Authentifier Tailscale avec la cle
+  command: tailscale up --authkey={{ tailscale_auth_key }} --accept-routes --accept-dns=false
+  when: 
+    - tailscale_auth_key is defined
+    - "'Logged out' in tailscale_status.stdout or tailscale_status.rc != 0"
+  no_log: true  # Ne pas afficher la cle dans les logs
+
+- name: Obtenir l'IP Tailscale
+  command: tailscale ip -4
+  register: tailscale_ip
+  changed_when: false
+
+- name: Afficher l'IP Tailscale
+  debug:
+    msg: "IP Tailscale de {{ inventory_hostname }}: {{ tailscale_ip.stdout }}"
+
+- name: Sauvegarder l'IP Tailscale dans un fact
+  set_fact:
+    tailscale_ipv4: "{{ tailscale_ip.stdout }}"

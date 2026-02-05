@@ -1,0 +1,11 @@
+# Role: alerting - Handlers
+# ===========================
+---
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Restart Fail2Ban
+  systemd:
+    name: fail2ban
+    state: restarted

@@ -1,0 +1,23 @@
+# Playbook: site.yml
+# Description: Playbook complet - Execute toutes les phases
+# ==========================================================
+# Usage: ansible-playbook -i inventory/hosts.ini playbooks/site.yml --ask-vault-pass
+#
+# ATTENTION: Ce playbook execute TOUT. Pour un premier deploiement,
+# il est recommande d'executer les playbooks un par un.
+---
+- name: Phase 1 - Bootstrap
+  import_playbook: 00-bootstrap.yml
+  tags: [bootstrap]
+
+- name: Phase 2 - Securisation
+  import_playbook: 01-security.yml
+  tags: [security]
+
+- name: Phase 3 - Stockage
+  import_playbook: 02-storage.yml
+  tags: [storage]
+
+- name: Phase 4 - Kubernetes
+  import_playbook: 03-k3s.yml
+  tags: [k3s]

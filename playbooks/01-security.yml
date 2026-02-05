@@ -1,0 +1,70 @@
+# Playbook: 01-security.yml
+# Description: Securisation complete des Raspberry Pi
+# ====================================================
+# Usage: ansible-playbook -i inventory/hosts.ini playbooks/01-security.yml --ask-vault-pass
+---
+- name: Securisation des Raspberry Pi
+  hosts: all
+  become: yes
+  gather_facts: yes
+  serial: 1  # Un noeud a la fois pour eviter les problemes de reconnexion
+
+  vars_files:
+    - ../inventory/group_vars/all.yml
+    - ../inventory/group_vars/vault.yml
+
+  pre_tasks:
+    - name: Afficher l'avertissement
+      debug:
+        msg: |
+          ATTENTION: Ce playbook va modifier la configuration SSH!
+          - Le port SSH passera a {{ ssh_port }}
+          - L'authentification par mot de passe sera desactivee
+          - Assurez-vous d'avoir votre cle SSH deployee!
+
+  roles:
+    - role: security
+      tags: [security, ssh, ufw, fail2ban]
+
+    - role: tailscale
+      tags: [tailscale, vpn]
+
+    - role: monitoring
+      tags: [monitoring, node_exporter]
+
+    - role: audit
+      tags: [audit, lynis]
+
+    - role: alerting
+      tags: [alerting, discord, email]
+
+  post_tasks:
+    - name: Deployer la banniere SSH
+      copy:
+        src: "{{ playbook_dir }}/../roles/security/files/ssh_banner"
+        dest: /etc/ssh/banner
+        mode: '0644'
+
+    - name: Redemarrer SSH pour appliquer les changements
+      systemd:
+        name: ssh
+        state: restarted
+
+    - name: Afficher le message de fin
+      debug:
+        msg: |
+          Securisation terminee pour {{ ansible_hostname }}!
+          
+          IMPORTANT - Nouvelle configuration SSH:
+          - Port: {{ ssh_port }}
+          - Utilisateur: {{ ansible_user }}
+          - Authentification: Cle SSH uniquement
+          
+          Pour vous reconnecter:
+          ssh -p {{ ssh_port }} {{ ansible_user }}@{{ ansible_host }}
+          
+          Ou via Tailscale (recommande):
+          ssh -p {{ ssh_port }} {{ ansible_user }}@{{ tailscale_ipv4 | default('IP_TAILSCALE') }}
+          
+          Prochaine etape:
+          ansible-playbook -i inventory/hosts.ini playbooks/02-storage.yml --ask-vault-pass

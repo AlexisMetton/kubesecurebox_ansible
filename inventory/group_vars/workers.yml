@@ -1,0 +1,9 @@
+# KubeSecureBox - Variables specifiques aux workers
+# ==================================================
+
+# Les workers ont le role d'agent K3s
+k3s_role: "agent"
+
+# Pas de stockage local, ils utilisent le NFS du master
+storage_enabled: false
+nfs_client_enabled: true

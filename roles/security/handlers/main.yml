@@ -1,0 +1,16 @@
+# Role: security - Handlers
+# ==========================
+---
+- name: Restart SSH
+  systemd:
+    name: ssh
+    state: restarted
+
+- name: Restart Fail2Ban
+  systemd:
+    name: fail2ban
+    state: restarted
+
+- name: Reboot required
+  debug:
+    msg: "Un redemarrage est necessaire pour appliquer les changements de config.txt"

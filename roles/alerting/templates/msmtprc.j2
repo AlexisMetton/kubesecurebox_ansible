@@ -1,0 +1,17 @@
+# Configuration msmtp pour KubeSecureBox
+# Genere par Ansible - Ne pas modifier manuellement
+
+defaults
+auth           on
+tls            on
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+logfile        /var/log/msmtp.log
+
+account        brevo
+host           {{ smtp_host | default('smtp-relay.brevo.com') }}
+port           {{ smtp_port | default(587) }}
+from           {{ alert_email_from | default('alerts@kubesecurebox.com') }}
+user           {{ smtp_user | default('') }}
+password       {{ smtp_password | default('') }}
+
+account default : brevo

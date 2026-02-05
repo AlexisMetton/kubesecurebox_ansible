@@ -1,0 +1,97 @@
+# Role: kubernetes-prep
+# Description: Preparation du systeme pour Kubernetes (K3s)
+# ==========================================================
+---
+# === DESACTIVATION DU SWAP ===
+- name: Desactiver le swap immediatement
+  command: swapoff -a
+  changed_when: false
+
+- name: Desactiver le swap de maniere permanente (fstab)
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*?\sswap\s+.*)$'
+    replace: '# \1'
+
+- name: Desactiver dphys-swapfile
+  systemd:
+    name: dphys-swapfile
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+
+# === ACTIVATION DES CGROUPS ===
+- name: Lire le contenu actuel de cmdline.txt
+  slurp:
+    src: /boot/firmware/cmdline.txt
+  register: cmdline_content
+
+- name: Decoder le contenu de cmdline.txt
+  set_fact:
+    cmdline_current: "{{ cmdline_content.content | b64decode | trim }}"
+
+- name: Ajouter les options cgroup si necessaire
+  lineinfile:
+    path: /boot/firmware/cmdline.txt
+    regexp: '^(.*)$'
+    line: '\1 cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1'
+    backrefs: yes
+  when: "'cgroup_memory=1' not in cmdline_current"
+  notify: Reboot for cgroups
+
+# === MODULES NOYAU ===
+- name: Charger les modules noyau necessaires
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+    - ip_tables
+    - ip6_tables
+
+- name: Configurer les modules a charger au demarrage
+  copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      br_netfilter
+      overlay
+      ip_tables
+      ip6_tables
+    mode: '0644'
+
+# === SYSCTL POUR KUBERNETES ===
+- name: Configuration sysctl pour Kubernetes
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  loop:
+    - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { key: 'net.ipv4.ip_forward', value: '1' }
+    - { key: 'net.ipv6.conf.all.forwarding', value: '1' }
+    - { key: 'fs.inotify.max_user_watches', value: '524288' }
+    - { key: 'fs.inotify.max_user_instances', value: '512' }
+
+- name: Sauvegarder la configuration sysctl
+  copy:
+    dest: /etc/sysctl.d/99-kubernetes.conf
+    content: |
+      # Configuration sysctl pour Kubernetes
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+      fs.inotify.max_user_watches = 524288
+      fs.inotify.max_user_instances = 512
+    mode: '0644'
+
+# === VERIFICATION ===
+- name: Verifier que le swap est desactive
+  command: swapon --show
+  register: swap_status
+  changed_when: false
+  failed_when: swap_status.stdout != ""

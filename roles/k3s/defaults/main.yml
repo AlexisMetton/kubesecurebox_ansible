@@ -1,0 +1,6 @@
+# Role: k3s - Variables par defaut
+# ===================================
+---
+k3s_version: "v1.29.0+k3s1"
+k3s_role: "agent"  # server ou agent
+domain_name: "kubesecurebox.com"

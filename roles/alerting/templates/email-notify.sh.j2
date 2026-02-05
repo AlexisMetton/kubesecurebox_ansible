@@ -1,0 +1,53 @@
+#!/bin/bash
+# Script de notification Email pour KubeSecureBox
+# Genere par Ansible - Ne pas modifier manuellement
+# Usage: email-notify.sh "Sujet" "Corps du message" [info|warning|critical]
+
+set -e
+
+EMAIL_TO="{{ alert_email_to | default('') }}"
+EMAIL_FROM="{{ alert_email_from | default('alerts@kubesecurebox.com') }}"
+SUBJECT="${1:-Notification KubeSecureBox}"
+BODY="${2:-Aucun message}"
+LEVEL="${3:-info}"
+HOSTNAME=$(hostname)
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+
+# Verifier si l'email est configure
+if [ -z "${EMAIL_TO}" ]; then
+    echo "Email non configure. Notification ignoree."
+    exit 0
+fi
+
+# Prefixe selon le niveau
+case "${LEVEL}" in
+    "warning")
+        PREFIX="[ATTENTION]"
+        ;;
+    "critical")
+        PREFIX="[CRITIQUE]"
+        ;;
+    *)
+        PREFIX="[INFO]"
+        ;;
+esac
+
+# Construire le message
+FULL_MESSAGE="
+${PREFIX} ${SUBJECT}
+
+Serveur: ${HOSTNAME}
+Date: ${DATE}
+Niveau: ${LEVEL}
+
+Message:
+${BODY}
+
+--
+KubeSecureBox - Systeme d'alertes automatise
+"
+
+# Envoyer l'email
+echo "${FULL_MESSAGE}" | mail -s "${PREFIX} ${SUBJECT}" -r "${EMAIL_FROM}" "${EMAIL_TO}"
+
+echo "Email envoye a ${EMAIL_TO}: ${SUBJECT}"
