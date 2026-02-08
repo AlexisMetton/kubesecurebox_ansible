@@ -18,8 +18,22 @@ mkdir -p ${REPORT_DIR}
 echo "Demarrage du scan Lynis sur ${HOSTNAME}..."
 lynis audit system --no-colors > ${REPORT_FILE} 2>&1 || true
 
-# Extraire le score de durcissement
-SCORE=$(grep "Hardening index" ${REPORT_FILE} | grep -oP '\d+' | head -1 || echo "0")
+# Extraire le score de durcissement (plusieurs formats: EN, FR, .dat)
+SCORE=$(grep -i "hardening index\|indice de durcissement\|hardening_index" "${REPORT_FILE}" 2>/dev/null | grep -oE '[0-9]+' | head -1)
+if [ -z "${SCORE}" ]; then
+    # Fallback 1: pattern XX/100 en fin de rapport
+    SCORE=$(grep -oE '[0-9]{1,3}/100' "${REPORT_FILE}" 2>/dev/null | tail -1 | cut -d'/' -f1)
+fi
+if [ -z "${SCORE}" ]; then
+    # Fallback 2: fichier .dat Lynis (emplacement par defaut)
+    for dat in /var/log/lynis-report.dat /var/log/lynis/lynis-report.dat; do
+        if [ -f "${dat}" ]; then
+            SCORE=$(grep "^hardening_index=" "${dat}" 2>/dev/null | cut -d'=' -f2)
+            [ -n "${SCORE}" ] && break
+        fi
+    done
+fi
+SCORE=${SCORE:-0}
 
 echo "Score de durcissement: ${SCORE}/100"
 
